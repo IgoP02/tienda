@@ -1,8 +1,8 @@
+import { Exception } from '@adonisjs/core/build/standalone'
 import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
 import Database from '@ioc:Adonis/Lucid/Database'
-import SaleValidator from 'App/Validators/SaleValidator'
 import Sale from 'App/Models/Sale'
-import { Exception } from '@adonisjs/core/build/standalone'
+import SaleValidator from 'App/Validators/SaleValidator'
 
 export default class SalesController {
   public async index({response}: HttpContextContract) {
@@ -49,7 +49,7 @@ export default class SalesController {
 
     try {
       bankAccount = await Database.from('bank_accounts')
-      .where('id', payload.bankAccount).useTransaction(trx).forUpdate().firstOrFail()
+      .where('id', payload.bankAccount).useTransaction(trx).forUpdate().noWait().firstOrFail()
 
       let sale = new Sale()
 
@@ -64,7 +64,7 @@ export default class SalesController {
       for (const productDetail of payload.products) {
 
         product = await Database.from('products').where('id', productDetail.id)
-        .useTransaction(trx).forUpdate().firstOrFail()
+        .useTransaction(trx).forUpdate().noWait().firstOrFail()
 
         if (product.stock === 0) {
 
@@ -171,21 +171,31 @@ export default class SalesController {
 
       }).where('id', request.param('id')).firstOrFail()
 
+      /* 
+      ---Puedes omitir un query---
+
       await Database.from('bank_accounts').where('id', sale.bankAccount.id)
       .useTransaction(trx).forUpdate().first()
-
+      
       await Database.from('bank_accounts').where('id', sale.bankAccount.id)
       .useTransaction(trx).decrement('balance', sale.$extras.total)
+      */
 
+      await Database.from('bank_accounts').where('id', sale.bankAccount.id).forUpdate()
+      .useTransaction(trx).decrement('balance', sale.$extras.total)
 
       for (const product of sale.products) {
+     
+        /* Aquí también
         
         await Database.from('products').where('id', product.id)
         .useTransaction(trx).forUpdate().first()
-
+        
         await Database.from('products').where('id', product.id)
         .useTransaction(trx).increment('stock', product.$extras.pivot_quantity)
-        
+        */
+        await Database.from('products').where('id', product.id).forUpdate()
+        .useTransaction(trx).increment('stock', product.$extras.pivot_quantity)
       }
 
       await Database.from('sales').where('id', sale.id)
